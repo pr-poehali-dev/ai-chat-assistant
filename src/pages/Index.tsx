@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import Icon from "@/components/ui/icon";
+import func2url from "../../backend/func2url.json";
+
+const CHAT_URL = func2url.chat;
 
 type View = "chat" | "settings";
 type Tab = "profile" | "chat-params";
@@ -61,7 +64,7 @@ export default function Index() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!input.trim()) return;
     const userMsg: Message = {
       id: Date.now(),
@@ -72,16 +75,32 @@ export default function Index() {
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
+
+    try {
+      const res = await fetch(CHAT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMsg.text,
+          systemPrompt: chatParams.systemPrompt,
+        }),
+      });
+      const data = await res.json();
       const aiMsg: Message = {
         id: Date.now() + 1,
         role: "ai",
-        text: "Это демо-ответ. Подключи бэкенд, чтобы получать настоящие ответы от ИИ.",
+        text: data.reply || "Не удалось получить ответ.",
         time: getTime(),
       };
       setMessages((prev) => [...prev, aiMsg]);
-    }, 1800);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { id: Date.now() + 1, role: "ai", text: "Ошибка соединения. Попробуйте ещё раз.", time: getTime() },
+      ]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
